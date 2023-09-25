@@ -21,7 +21,7 @@ basePath = "D:/20230920"
 
 def imageFormat(basePath, fileName, ext):
     try:
-        bytes = subprocess.Popen(f'magick identify {basePath}/{fileName}.{ext}', shell=True, stdout=subprocess.PIPE).stdout.read()
+        bytes = subprocess.Popen(f'magick identify {basePath}/{fileName}{ext}', shell=True, stdout=subprocess.PIPE).stdout.read()
         decoded_string = bytes.decode("utf-8")
         ## 输出样式 D:\20230920\2_6213_202302251100300609140984264669\0002.avif AVIF 1080x1920 1080x1920+0+0 8-bit sRGB 92198B 0.000u 0:00.000
         print(decoded_string)
@@ -31,27 +31,27 @@ def imageFormat(basePath, fileName, ext):
         if fileFormat == "JPEG":
             return
         elif "PNG" in fileFormat:
-            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.png')
+            os.rename(f'{basePath}/{fileName}{ext}', f'{basePath}/{fileName}.png')
             convertFormatToJpg(basePath, fileName, "png")
             os.remove(f'{basePath}/{fileName}.png')
         elif "AVIF" in fileFormat:
-            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.avif')
+            os.rename(f'{basePath}/{fileName}{ext}', f'{basePath}/{fileName}.avif')
             convertFormatToJpg(basePath, fileName, "avif")
             os.remove(f'{basePath}/{fileName}.avif')
         elif "WEBP" in fileFormat:
-            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.webp')
+            os.rename(f'{basePath}/{fileName}{ext}', f'{basePath}/{fileName}.webp')
             convertFormatToJpg(basePath, fileName, "webp")
             os.remove(f'{basePath}/{fileName}.webp')
         elif "GIF" in fileFormat:
-            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.gif')
+            os.rename(f'{basePath}/{fileName}{ext}', f'{basePath}/{fileName}.gif')
             convertFormatToJpg(basePath, fileName, "gif")
             os.remove(f'{basePath}/{fileName}.gif')
         elif "BMP" in fileFormat:
-            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.bmp')
+            os.rename(f'{basePath}/{fileName}{ext}', f'{basePath}/{fileName}.bmp')
             convertFormatToJpg(basePath, fileName, "bmp")
-            os.remove(f'{basePath}/{fileName}.bmp')
+            os.remove(f'{basePath}/{fileName}bmp')
         elif "TIFF" in fileFormat:
-            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.tiff')
+            os.rename(f'{basePath}/{fileName}{ext}', f'{basePath}/{fileName}.tiff')
             convertFormatToJpg(basePath, fileName, "tiff")
             os.remove(f'{basePath}/{fileName}.tiff')
     except Exception as exc:
@@ -156,7 +156,7 @@ with sync_playwright() as playwright:
                 page.on('response', onPageResponse)
                 page.goto("https://claim.alipay.com/workbench/audit.htm#/search-center/integrated-query?claimReportNo=" + currentReportNo + "&prodCode=" + currentProdCode + "&showInfo=true")
                 page.wait_for_load_state('networkidle')
-                time.sleep(2)
+                time.sleep(10)
 
                 if len(fileList) == 0:
                     print(f'文件{file}未获取图片数据')
