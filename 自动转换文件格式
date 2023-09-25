@@ -1,0 +1,81 @@
+import re
+from playwright.sync_api import Page, expect
+from playwright.sync_api import sync_playwright
+from playwright.sync_api import Playwright, sync_playwright
+import json
+import time
+import random
+import uuid
+import os
+import subprocess
+
+fileList = []
+currentReportNo = ""
+currentProdCode = ""
+currentFolder = ""
+fileSeq = 1
+
+## 修改该参数
+basePath = "D:/20230920"
+
+def imageFormat(basePath, fileName, ext):
+    try:
+        bytes = subprocess.Popen(f'magick identify {basePath}/{fileName}.{ext}', shell=True, stdout=subprocess.PIPE).stdout.read()
+        decoded_string = bytes.decode("utf-8")
+        ## 输出样式 D:\20230920\2_6213_202302251100300609140984264669\0002.avif AVIF 1080x1920 1080x1920+0+0 8-bit sRGB 92198B 0.000u 0:00.000
+        print(decoded_string)
+        parts = decoded_string.split(" ")
+        fileFormat = parts[1]
+        print(f'Format: {fileFormat}')
+        if fileFormat == "JPEG":
+            return
+        elif "PNG" in fileFormat:
+            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.png')
+            convertFormatToJpg(basePath, fileName, "png")
+            os.remove(f'{basePath}/{fileName}.png')
+        elif "AVIF" in fileFormat:
+            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.avif')
+            convertFormatToJpg(basePath, fileName, "avif")
+            os.remove(f'{basePath}/{fileName}.avif')
+        elif "WEBP" in fileFormat:
+            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.webp')
+            convertFormatToJpg(basePath, fileName, "webp")
+            os.remove(f'{basePath}/{fileName}.webp')
+        elif "GIF" in fileFormat:
+            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.gif')
+            convertFormatToJpg(basePath, fileName, "gif")
+            os.remove(f'{basePath}/{fileName}.gif')
+        elif "BMP" in fileFormat:
+            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.bmp')
+            convertFormatToJpg(basePath, fileName, "bmp")
+            os.remove(f'{basePath}/{fileName}.bmp')
+        elif "TIFF" in fileFormat:
+            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.tiff')
+            convertFormatToJpg(basePath, fileName, "tiff")
+            os.remove(f'{basePath}/{fileName}.tiff')
+    except:
+        print("ERROR")
+
+def convertFormatToJpg(basePath, fileName, ext):
+    bytes = subprocess.Popen(f'magick {basePath}/{fileName}.{ext} {basePath}/{fileName}.jpg', shell=True, stdout=subprocess.PIPE).stdout.read()
+    decoded_string = bytes.decode("utf-8")
+    print(decoded_string)
+    print(f'图片 {basePath}/{fileName}.{ext} 格式转换成 {basePath}/{fileName}.jpg')
+
+
+
+## 这里写一个循环，遍历所有案件
+for file in os.listdir(basePath):
+    try:
+        fullPath = os.path.join(basePath, file)
+        
+        if not os.path.isdir(fullPath):
+            continue
+
+        for file2 in os.listdir(fullPath):
+            print(f'file: {file2}')
+            parts = file2.split(".")
+            imageFormat(fullPath, parts[0], parts[1])
+
+    except:
+        print("ERROR")
