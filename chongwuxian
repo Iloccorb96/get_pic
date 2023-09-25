@@ -1,0 +1,197 @@
+import re
+from playwright.sync_api import Page, expect
+from playwright.sync_api import sync_playwright
+from playwright.sync_api import Playwright, sync_playwright
+import json
+import time
+import random
+import uuid
+import os
+import subprocess
+import traceback
+
+fileList = []
+currentReportNo = ""
+currentProdCode = ""
+currentFolder = ""
+fileSeq = 1
+
+## 修改该参数
+basePath = "D:/20230920"
+
+def imageFormat(basePath, fileName, ext):
+    try:
+        bytes = subprocess.Popen(f'magick identify {basePath}/{fileName}.{ext}', shell=True, stdout=subprocess.PIPE).stdout.read()
+        decoded_string = bytes.decode("utf-8")
+        ## 输出样式 D:\20230920\2_6213_202302251100300609140984264669\0002.avif AVIF 1080x1920 1080x1920+0+0 8-bit sRGB 92198B 0.000u 0:00.000
+        print(decoded_string)
+        parts = decoded_string.split(" ")
+        fileFormat = parts[1]
+        print(f'Format: {fileFormat}')
+        if fileFormat == "JPEG":
+            return
+        elif "PNG" in fileFormat:
+            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.png')
+            convertFormatToJpg(basePath, fileName, "png")
+            os.remove(f'{basePath}/{fileName}.png')
+        elif "AVIF" in fileFormat:
+            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.avif')
+            convertFormatToJpg(basePath, fileName, "avif")
+            os.remove(f'{basePath}/{fileName}.avif')
+        elif "WEBP" in fileFormat:
+            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.webp')
+            convertFormatToJpg(basePath, fileName, "webp")
+            os.remove(f'{basePath}/{fileName}.webp')
+        elif "GIF" in fileFormat:
+            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.gif')
+            convertFormatToJpg(basePath, fileName, "gif")
+            os.remove(f'{basePath}/{fileName}.gif')
+        elif "BMP" in fileFormat:
+            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.bmp')
+            convertFormatToJpg(basePath, fileName, "bmp")
+            os.remove(f'{basePath}/{fileName}.bmp')
+        elif "TIFF" in fileFormat:
+            os.rename(f'{basePath}/{fileName}.{ext}', f'{basePath}/{fileName}.tiff')
+            convertFormatToJpg(basePath, fileName, "tiff")
+            os.remove(f'{basePath}/{fileName}.tiff')
+    except Exception as exc:
+        print(exc)
+
+def convertFormatToJpg(basePath, fileName, ext):
+    bytes = subprocess.Popen(f'magick {basePath}/{fileName}.{ext} {basePath}/{fileName}.jpg', shell=True, stdout=subprocess.PIPE).stdout.read()
+    decoded_string = bytes.decode("utf-8")
+    print(decoded_string)
+    print(f'图片 {basePath}/{fileName}.{ext} 格式转换成 {basePath}/{fileName}.jpg')
+
+def onPageResponse(response):
+    try:
+        # 监听所有响应的状态码和链接
+        # print(f'Statue {response.status}: {response.url}')
+        if "showClaimInfo" in response.url:
+            body = response.json()
+            print(body)
+            if body["success"]:
+                businessComponents = body["data"]["businessComponents"]
+                for businessComponent in businessComponents:
+                    if businessComponent["title"] == "凭证信息":
+                        for item in businessComponent["items"]:
+                            for option in item["options"]:
+                                if option["desc"] == "医疗项目费用明细清单" or option["desc"] == "宠物费用清单":
+                                    print(f'待下载: {option["fileUrl"]}')
+                                    fileList.append(option["fileUrl"])
+    except Exception as exc:
+        print(exc)
+
+def onImageResponse(response):
+    try:
+        # 监听所有响应的状态码和链接
+        if "mass.alipay.com" in response.url:
+            print(f'Statue {response.status}: {response.url}')
+            contentType = response.header_value("Content-Type")
+            suffix = ".jpg"
+            if contentType == "image/gif":
+                suffix = ".gif"
+            elif contentType == "image/jpg":
+                suffix = ".jpg"
+            elif contentType == "image/jpeg":
+                suffix = ".jpg"
+            elif contentType == "image/png":
+                suffix = ".png"
+            elif contentType == "image/tiff":
+                suffix = ".tif"
+            body = response.body()
+            fileName = str(fileSeq).zfill(4)
+            path = basePath + '/' + currentFolder + "/" + fileName + suffix
+            f = open(path, 'wb')
+            f.write(body)
+            f.flush()
+            print('下载' + response.url + " 地址 " + path)
+            f.close()
+            imageFormat(basePath + '/' + currentFolder, fileName, suffix)
+            time.sleep(1)
+    except Exception as exc:
+        print(exc)
+
+## 安装playwright
+## pip install pytest-playwright
+## playwright install
+
+with sync_playwright() as playwright:
+    ## 先手工打开chrome
+    ## cd C:\Program Files\Google\Chrome\Application
+    ## chrome.exe --remote-debugging-port=19222
+    ## 然后执行该脚本
+    browser = playwright.chromium.connect_over_cdp("http://localhost:19222")
+    default_context = browser.contexts[0]
+
+    print("开始获取案件数据")
+
+    ## 如果查不到，重复三次
+    retryCount = 1
+
+    ## 这里写一个循环，遍历所有案件
+    for file in os.listdir(basePath):
+        try:
+            fullPath = os.path.join(basePath, file)
+            
+            if not os.path.isdir(fullPath):
+                continue
+
+            # file = "0_6213_202211021100300609800933761940"
+            currentFolder = file
+            parts = file.split("_")
+            currentReportNo = parts[2]
+            currentProdCode = parts[1]
+            print(f'处理案件 {currentFolder}')
+            # currentReportNo = "202308111100300602680061413343"
+            # currentProdCode = "6213"
+
+            i = 0
+            while i < retryCount:
+                fileList.clear()
+                fileSeq = 1
+                
+                page = default_context.new_page()
+
+                page.on('response', onPageResponse)
+                page.goto("https://claim.alipay.com/workbench/audit.htm#/search-center/integrated-query?claimReportNo=" + currentReportNo + "&prodCode=" + currentProdCode + "&showInfo=true")
+                page.wait_for_load_state('networkidle')
+                time.sleep(2)
+
+                if len(fileList) == 0:
+                    print(f'文件{file}未获取图片数据')
+                    rd = (int)(random.random() * 5)
+                    ## 随机等待5-10秒
+                    print(f'等待{5 + rd}秒')
+                    time.sleep(5)
+                    page.close()
+
+                    i += 1
+                    continue
+
+                for file in fileList:
+                    downloadPage = default_context.new_page()
+                    downloadPage.on('response', onImageResponse)
+                    downloadPage.goto(file)
+                    downloadPage.wait_for_load_state('networkidle')
+                    time.sleep(1)
+                    downloadPage.close()
+                    fileSeq = fileSeq + 1
+
+                page.close()
+                
+                print(f'处理案件 {currentFolder} 完成')
+                rd = (int)(random.random() * 5)
+                ## 随机等待5-10秒
+                print(f'等待{5 + rd}秒')
+                time.sleep(5 + rd)
+
+                break
+
+            if i >= retryCount:
+                print(f'文件{file}获取图片数据失败')
+
+        except Exception as exc:
+            print(exc)
+        
+    print("案件数据获取完成")
