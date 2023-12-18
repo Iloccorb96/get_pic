@@ -9,6 +9,8 @@ import uuid
 import os
 import subprocess
 import traceback
+import datetime
+import pickle
 
 fileList = []
 currentReportNo = ""
@@ -17,76 +19,85 @@ currentFolder = ""
 fileSeq = 1
 
 ## 修改该参数
-basePath = "D:/20230920"
+basePath = r"C:\Users\wb_wangchenwei\Desktop\宠物险\就医标准建设\1原始图片\待获取\20231214"
+
+
+def printLog(msg):
+    print(f'{datetime.datetime.now()}  {msg}')
+
 
 def imageFormat(basePath, fileName, ext):
     try:
-        bytes = subprocess.Popen(f'magick identify {basePath}/{fileName}{ext}', shell=True, stdout=subprocess.PIPE).stdout.read()
+        bytes = subprocess.Popen(f'magick identify {basePath}/{fileName}{ext}', shell=True,
+                                 stdout=subprocess.PIPE).stdout.read()
         decoded_string = bytes.decode("utf-8")
         ## 输出样式 D:\20230920\2_6213_202302251100300609140984264669\0002.avif AVIF 1080x1920 1080x1920+0+0 8-bit sRGB 92198B 0.000u 0:00.000
-        print(decoded_string)
+        printLog(decoded_string)
         parts = decoded_string.split(" ")
         fileFormat = parts[1]
-        print(f'Format: {fileFormat}')
+        printLog(f'Format: {fileFormat}')
         if fileFormat == "JPEG":
             return
         elif "PNG" in fileFormat:
             os.rename(f'{basePath}/{fileName}{ext}', f'{basePath}/{fileName}.png')
             convertFormatToJpg(basePath, fileName, "png")
-            os.remove(f'{basePath}/{fileName}.png')
         elif "AVIF" in fileFormat:
             os.rename(f'{basePath}/{fileName}{ext}', f'{basePath}/{fileName}.avif')
             convertFormatToJpg(basePath, fileName, "avif")
-            os.remove(f'{basePath}/{fileName}.avif')
         elif "WEBP" in fileFormat:
             os.rename(f'{basePath}/{fileName}{ext}', f'{basePath}/{fileName}.webp')
             convertFormatToJpg(basePath, fileName, "webp")
-            os.remove(f'{basePath}/{fileName}.webp')
         elif "GIF" in fileFormat:
             os.rename(f'{basePath}/{fileName}{ext}', f'{basePath}/{fileName}.gif')
             convertFormatToJpg(basePath, fileName, "gif")
-            os.remove(f'{basePath}/{fileName}.gif')
         elif "BMP" in fileFormat:
             os.rename(f'{basePath}/{fileName}{ext}', f'{basePath}/{fileName}.bmp')
             convertFormatToJpg(basePath, fileName, "bmp")
-            os.remove(f'{basePath}/{fileName}bmp')
         elif "TIFF" in fileFormat:
             os.rename(f'{basePath}/{fileName}{ext}', f'{basePath}/{fileName}.tiff')
             convertFormatToJpg(basePath, fileName, "tiff")
-            os.remove(f'{basePath}/{fileName}.tiff')
     except Exception as exc:
-        print(exc)
+        printLog(exc)
+
 
 def convertFormatToJpg(basePath, fileName, ext):
-    bytes = subprocess.Popen(f'magick {basePath}/{fileName}.{ext} {basePath}/{fileName}.jpg', shell=True, stdout=subprocess.PIPE).stdout.read()
+    bytes = subprocess.Popen(f'magick {basePath}/{fileName}.{ext} {basePath}/{fileName}.jpg', shell=True,
+                             stdout=subprocess.PIPE).stdout.read()
     decoded_string = bytes.decode("utf-8")
-    print(decoded_string)
-    print(f'图片 {basePath}/{fileName}.{ext} 格式转换成 {basePath}/{fileName}.jpg')
+    printLog(decoded_string)
+    if os.path.exists(f'{basePath}/{fileName}.jpg'):
+        printLog(f'图片 {basePath}/{fileName}.{ext} 格式转换成 {basePath}/{fileName}.jpg')
+        os.remove(f'{basePath}/{fileName}.{ext}')
+
 
 def onPageResponse(response):
     try:
         # 监听所有响应的状态码和链接
-        # print(f'Statue {response.status}: {response.url}')
+        # printLog(f'Statue {response.status}: {response.url}')
         if "showClaimInfo" in response.url:
             body = response.json()
-            print(body)
+            with open(f'{fullPath}' + '/body.pickle', "wb") as file:
+                pickle.dump(body, file)
+
+            printLog(body)
             if body["success"]:
                 businessComponents = body["data"]["businessComponents"]
                 for businessComponent in businessComponents:
                     if businessComponent["title"] == "凭证信息":
                         for item in businessComponent["items"]:
                             for option in item["options"]:
-                                if option["desc"] == "医疗项目费用明细清单" or option["desc"] == "宠物费用清单":
-                                    print(f'待下载: {option["fileUrl"]}')
+                                if option["desc"] == "医疗项目费用明细清单" or option["desc"] == "宠物费用清单" or option["desc"] == "身份证头像面" or option["desc"] == "身份证国徽面" or option["desc"] == "宠物化验单" or option["desc"] == "医疗诊断证明" or option["desc"] == "就诊病例" or option["desc"] == "正规医疗发票":
+                                    printLog(f'待下载: {option["fileUrl"]}')
                                     fileList.append(option["fileUrl"])
     except Exception as exc:
-        print(exc)
+        printLog(exc)
+
 
 def onImageResponse(response):
     try:
         # 监听所有响应的状态码和链接
         if "mass.alipay.com" in response.url:
-            print(f'Statue {response.status}: {response.url}')
+            printLog(f'Statue {response.status}: {response.url}')
             contentType = response.header_value("Content-Type")
             suffix = ".jpg"
             if contentType == "image/gif":
@@ -105,12 +116,13 @@ def onImageResponse(response):
             f = open(path, 'wb')
             f.write(body)
             f.flush()
-            print('下载' + response.url + " 地址 " + path)
+            printLog('下载' + response.url + " 地址 " + path)
             f.close()
             imageFormat(basePath + '/' + currentFolder, fileName, suffix)
             time.sleep(1)
     except Exception as exc:
-        print(exc)
+        printLog(exc)
+
 
 ## 安装playwright
 ## pip install pytest-playwright
@@ -124,25 +136,34 @@ with sync_playwright() as playwright:
     browser = playwright.chromium.connect_over_cdp("http://localhost:19222")
     default_context = browser.contexts[0]
 
-    print("开始获取案件数据")
+    printLog("开始获取案件数据")
 
     ## 如果查不到，重复三次
-    retryCount = 1
+    retryCount = 3
 
+    index = 0
+    totalCount = len(os.listdir(basePath))
     ## 这里写一个循环，遍历所有案件
     for file in os.listdir(basePath):
         try:
+            index = index + 1
+            printLog(f'进度{(index * 100) // totalCount}%')
             fullPath = os.path.join(basePath, file)
-            
+
             if not os.path.isdir(fullPath):
+                continue
+
+            subfiles = os.listdir(fullPath)
+            if len(subfiles) > 1:
+                printLog(f'文件{file}已获取图片数据')
                 continue
 
             # file = "0_6213_202211021100300609800933761940"
             currentFolder = file
             parts = file.split("_")
-            currentReportNo = parts[2]
-            currentProdCode = parts[1]
-            print(f'处理案件 {currentFolder}')
+            currentReportNo = file
+            currentProdCode = "6213"
+            printLog(f'处理案件 {currentFolder}')
             # currentReportNo = "202308111100300602680061413343"
             # currentProdCode = "6213"
 
@@ -150,23 +171,32 @@ with sync_playwright() as playwright:
             while i < retryCount:
                 fileList.clear()
                 fileSeq = 1
-                
+                i += 1
+
                 page = default_context.new_page()
 
                 page.on('response', onPageResponse)
-                page.goto("https://claim.alipay.com/workbench/audit.htm#/search-center/integrated-query?claimReportNo=" + currentReportNo + "&prodCode=" + currentProdCode + "&showInfo=true")
+                page.goto(
+                    "https://claim.alipay.com/workbench/audit.htm#/search-center/integrated-query?claimReportNo=" + currentReportNo + "&prodCode=" + currentProdCode + "&showInfo=true")
                 page.wait_for_load_state('networkidle')
-                time.sleep(10)
+
+                wait_sec = 0
+                while len(fileList) == 0:
+                    if wait_sec > 5:
+                        break
+                    time.sleep(1)
+                    wait_sec = wait_sec + 1
 
                 if len(fileList) == 0:
-                    print(f'文件{file}未获取图片数据')
+                    page.close()
+                    time.sleep(1)
+
+                if len(fileList) == 0:
+                    printLog(f'文件{file}未获取图片数据')
                     rd = (int)(random.random() * 5)
                     ## 随机等待5-10秒
-                    print(f'等待{5 + rd}秒')
-                    time.sleep(5)
-                    page.close()
-
-                    i += 1
+                    printLog(f'等待{1 + rd}秒')
+                    time.sleep(1+rd)
                     continue
 
                 for file in fileList:
@@ -178,20 +208,23 @@ with sync_playwright() as playwright:
                     downloadPage.close()
                     fileSeq = fileSeq + 1
 
-                page.close()
-                
-                print(f'处理案件 {currentFolder} 完成')
+                try:
+                    page.close()
+                except Exception as exc2:
+                    printLog(exc2)
+
+                printLog(f'处理案件 {currentFolder} 完成')
                 rd = (int)(random.random() * 5)
                 ## 随机等待5-10秒
-                print(f'等待{5 + rd}秒')
-                time.sleep(5 + rd)
+                printLog(f'等待{1 + rd}秒')
+                time.sleep(1 + rd)
 
                 break
 
             if i >= retryCount:
-                print(f'文件{file}获取图片数据失败')
+                printLog(f'文件{file}获取图片数据失败')
 
         except Exception as exc:
-            print(exc)
-        
-    print("案件数据获取完成")
+            printLog(exc)
+
+    printLog("案件数据获取完成")
